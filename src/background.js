@@ -53,7 +53,11 @@ function getFilesUnderSection(sesskey, SUPPORTED_FILES) {
 				.map(({instanceName, anchorTag}) => ({
 					name: instanceName.firstChild.textContent.trim(),
 					downloadOptions: getDownloadOptions(sesskey, anchorTag.href),
-					type: instanceName.lastChild.textContent.trim(),
+					type: instanceName.lastChild.textContent.trim() === "Page" ?
+						instanceName.firstChild.textContent.indexOf("Video") === 0 || instanceName.firstChild.textContent.indexOf("Audio") === 0 ?
+							"Vimeo":
+							"Page" :
+						instanceName.lastChild.textContent.trim(),
 					section: section
 				}))
 				.filter(activity => SUPPORTED_FILES.has(activity.type));
@@ -102,7 +106,7 @@ function getFiles() {
 	const tableBody = document.querySelector(
 		"div[role='main'] > table.generaltable.mod_index > tbody"
 	);
-	const SUPPORTED_FILES = new Set(["File", "Folder", "URL", "Page", "קובץ"]);
+	const SUPPORTED_FILES = new Set(["File", "Folder", "URL", "Page", "Vimeo"]);
 
 	const allFiles = tableBody === null
 		? getFilesUnderSection(sesskey, SUPPORTED_FILES)

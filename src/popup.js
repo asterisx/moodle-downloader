@@ -6,6 +6,64 @@
 let resourcesList = [];
 let isDownloadActive = false;
 
+function getVimeoDownloadableUrls(doc) {
+	console.log("DOC", doc);
+
+	// Find Vimeo embed frame
+	var embedFrames = doc.querySelectorAll('iframe[src*="player.vimeo.com"]');
+
+	// No embed frames found?
+	if (!embedFrames.length) {
+		console.error("Failed to identify embeded video frame");
+		return;
+	}
+
+	const Urls = [];
+
+	// Retrieve embed source
+	for (let i = 0; i < embedFrames.length; i++) {
+		console.log('Requesting source for embedded video: ', embedFrames[i]);
+		getSource(embedFrames[i].src, function(response) {
+			const url = findMp4Url(response);
+			console.log(url);
+			Urls.push(url);
+		});
+	}
+	return Urls;
+}
+
+/**
+ * Retrieves content source at given URL.
+ * @param {string} url URL from which content source will be retrieved
+ * @param {function} callback Called with the retrieved source on successful retrieval
+ */
+function getSource(url, callback) {
+	let xhr = new XMLHttpRequest();
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState == 4 && xhr.status == 200) {
+			callback(xhr.responseText);
+		}
+	};
+	xhr.open("GET", url, true);
+	xhr.send(null);
+};
+
+/**
+ * Finds mp4 URL within Vimeo embed source.
+ * @param {string} source Source to search for mp4 URL
+ * @return {string} The mp4 URL
+ */
+function findMp4Url(source) {
+	return source.match(/"url"\s*:\s*"(https?:\/\/[^"]+\.vimeocdn\.com\/[^"]+\.mp4(\?([^"]+=[^"]+;?)+)?)"/)[1];
+}
+
+const groupBy = function(xs, key) {
+	return xs.reduce(function(rv, x) {
+		(rv[x[key]] = rv[x[key]] || []).push(x);
+		return rv;
+	}, {});
+};
+
 function main() {
 	// downloadResources on button press
 	const button = document.getElementById("downloadResources");
@@ -40,16 +98,28 @@ function main() {
 			);
 			const resources = result[0];
 			resourcesList = [...resources];
-			console.log(result);
-			resources.forEach((resource, index) => {
-				const resourceOption = document.createElement("option");
+			const groups = groupBy(resourcesList, 'section');
+			let index = 0;
+			Object.keys(groups).forEach((key) => {
+				const optGroupElement = document.createElement("optgroup");
+				const group = groups[key];
+				optGroupElement.setAttribute("label", key);
 
-				// creating option element such that the text will be
-				// the resource name and the option value its index in the array.
-				resourceOption.value = index.toString();
-				resourceOption.title = resource.name;
-				resourceOption.innerHTML = resource.name;
-				resourceSelector.appendChild(resourceOption);
+				group.forEach((elem) => {
+					const resourceOption = document.createElement("option");
+
+					// creating option element such that the text will be
+					// the resource name and the option value its index in the array.
+					resourceOption.value = index.toString();
+					resourceOption.title = elem.name;
+					if(elem.type === "Vimeo") {
+						resourceOption.style.backgroundColor = "lightgrey";
+					}
+					resourceOption.innerHTML = elem.name;
+					optGroupElement.appendChild(resourceOption);
+					index++;
+				});
+				resourceSelector.appendChild(optGroupElement);
 			});
 		} catch (error) {
 			console.log(error);
@@ -200,11 +270,11 @@ function downloadResources() {
 	updateDownloads(selectedOptions.length);
 
 	// showing the button and removing the text and requesting for feedback
-	setTimeout(() => {
+	/*setTimeout(() => {
 		warning.setAttribute("hidden", "hidden");
 		button.removeAttribute("hidden");
 		requestFeedback();
-	}, (selectedOptions.length + 4) * INTERVAL);
+	}, (selectedOptions.length + 4) * INTERVAL);*/
 
 	selectedOptions.forEach((option, index) => {
 		const resourceIndex = Number(option.value);
@@ -248,6 +318,9 @@ function downloadResources() {
 						chrome.downloads.download(newOptions);
 					}, index * INTERVAL);
 				});
+		} else if (resource.type === "Vimeo") {
+			console.log(resource);
+			chrome.tabs.create({url: resource.downloadOptions.url, active: false});
 		} else {
 			setTimeout(() => {
 				chrome.downloads.download(resource.downloadOptions);
