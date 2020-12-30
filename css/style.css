@@ -6,3 +6,7 @@
 	border-radius: .25rem;
 }
 
+option:checked::before {
+	color: blue
+}
+
